@@ -1,3 +1,7 @@
+import { installNetworkMocks } from "./api-client.js";
+
+await installNetworkMocks();
+
 function r(e, t, o) {
   chrome.tabs.query({ url: e }, function(a) {
     a.length > 0 && a.forEach((s) => {
