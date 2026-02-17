@@ -1,5 +1,6 @@
 import { installNetworkMocks } from "./api-client.js";
 
+codex/implement-local-dev-mode-support-84nplz
 (async () => {
   try {
     await installNetworkMocks();
@@ -7,6 +8,8 @@ import { installNetworkMocks } from "./api-client.js";
     console.error("[WhaScale] Falha ao inicializar Local Dev Mode no background", error);
   }
 })();
+=======
+await installNetworkMocks();
 
 function r(e, t, o) {
   chrome.tabs.query({ url: e }, function(a) {
