@@ -1,0 +1,30 @@
+{
+   "action": {
+      "default_icon": "label/icons/plugin/icon.png"
+   },
+   "background": {
+      "service_worker": "background.js"
+   },
+   "content_scripts": [ {
+      "css": [ "label/css/whascale.css", "content/assets/css/style.css", "content.css" ],
+      "js": [ "content/index.js" ],
+      "matches": [ "https://web.whatsapp.com/*" ]
+   } ],
+   "description": "WhaScale é um CRM para WhatsApp Web. Organize seus chats e otimize seus negócios no WhatsApp Web",
+   "externally_connectable": {
+      "matches": [ "https://app.wascript.com.br/*", "https://dev.watools.com.br/*" ]
+   },
+   "icons": {
+      "128": "label/icons/plugin/icon.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqJidwDxAG424CJ+kyy8JUS0gMCyuI3j/pA/5FHfCTPUOPNuo7fb9DVjDL8uop7JKX7oeA5Rkg5ZAwebv4UwNs0dpM6w+pwNcry2wd0lu2Gp5dS0X6zSu7wjTy6DPtJj2WalLlnQdB3yeJLhrDZluLWSeZ6U+Jh1b+kSxY4Eh/ATBswqPunfyMsjhXa0XLQW9g9hXR3v/U69Dt/zUqKy/vafDhJ+DsHfCcPX1szFXTny25fsiD5//YTseEassTg0pqIQmkucd2ooeAsjJBQ8EWAMcJ6no5+x4UO2iYHZlyoI6WWr4OtGhXMNXanaZzzlSyNShn5BVdhCuhDKq0ilCiwIDAQAB",
+   "manifest_version": 3,
+   "name": "WhaScale - Um passo à frente do seu concorrente",
+   "permissions": [ "unlimitedStorage", "storage", "alarms", "tabs" ],
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "7.4.3.14",
+   "web_accessible_resources": [ {
+      "matches": [ "https://web.whatsapp.com/*" ],
+      "resources": [ "*.js", "*.css", "*.png", "*.mp3", ".ttf", "label/*.json", "label/*.png" ]
+   } ]
+}
