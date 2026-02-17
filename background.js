@@ -1,3 +1,13 @@
+import { installNetworkMocks } from "./api-client.js";
+
+(async () => {
+  try {
+    await installNetworkMocks();
+  } catch (error) {
+    console.error("[WhaScale] Falha ao inicializar Local Dev Mode no background", error);
+  }
+})();
+
 function r(e, t, o) {
   chrome.tabs.query({ url: e }, function(a) {
     a.length > 0 && a.forEach((s) => {
