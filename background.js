@@ -1,6 +1,5 @@
 import { installNetworkMocks } from "./api-client.js";
 
-codex/implement-local-dev-mode-support-84nplz
 (async () => {
   try {
     await installNetworkMocks();
@@ -8,8 +7,6 @@ codex/implement-local-dev-mode-support-84nplz
     console.error("[WhaScale] Falha ao inicializar Local Dev Mode no background", error);
   }
 })();
-=======
-await installNetworkMocks();
 
 function r(e, t, o) {
   chrome.tabs.query({ url: e }, function(a) {
@@ -90,7 +87,7 @@ chrome.alarms.onAlarm.addListener((e) => {
       break;
     // 5 Minutos
     case "Five_Minutes":
-      r("https://web.whatsapp.com/*", "license_update", {}), r("https://web.whatsapp.com/*", "dispatch_timing_follow", {});
+      r("https://web.whatsapp.com/*", "dispatch_timing_follow", {});
       break;
     // 10 Minutos
     case "Ten_Minutes":
@@ -98,7 +95,7 @@ chrome.alarms.onAlarm.addListener((e) => {
       break;
     // 30 Minutos
     case "Thirty_Minutes":
-      r("https://web.whatsapp.com/*", "Remote-Notificacao", {}), r("https://web.whatsapp.com/*", "license_free_update", {});
+      r("https://web.whatsapp.com/*", "Remote-Notificacao", {});
       break;
     // Alarme de manter o sistema ativo
     case "keepAwake":
@@ -157,7 +154,7 @@ async function k() {
       agendaMsg: e.agendaMsg || [],
       perfil: e.perfil || [],
       categoria: e.categoria || [],
-      initSystem: e.initSystem || !1,
+      initSystem: e.initSystem ?? !0,
       backupAutomatico: e.backupAutomatico || _,
       crm: e.crm || [],
       fluxo: e.fluxo || { workflows: [], currentWorkflow: null },
