@@ -87,7 +87,7 @@ chrome.alarms.onAlarm.addListener((e) => {
       break;
     // 5 Minutos
     case "Five_Minutes":
-      r("https://web.whatsapp.com/*", "license_update", {}), r("https://web.whatsapp.com/*", "dispatch_timing_follow", {});
+      r("https://web.whatsapp.com/*", "dispatch_timing_follow", {});
       break;
     // 10 Minutos
     case "Ten_Minutes":
@@ -95,7 +95,7 @@ chrome.alarms.onAlarm.addListener((e) => {
       break;
     // 30 Minutos
     case "Thirty_Minutes":
-      r("https://web.whatsapp.com/*", "Remote-Notificacao", {}), r("https://web.whatsapp.com/*", "license_free_update", {});
+      r("https://web.whatsapp.com/*", "Remote-Notificacao", {});
       break;
     // Alarme de manter o sistema ativo
     case "keepAwake":
