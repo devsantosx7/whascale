@@ -154,7 +154,7 @@ async function k() {
       agendaMsg: e.agendaMsg || [],
       perfil: e.perfil || [],
       categoria: e.categoria || [],
-      initSystem: e.initSystem || !1,
+      initSystem: e.initSystem ?? !0,
       backupAutomatico: e.backupAutomatico || _,
       crm: e.crm || [],
       fluxo: e.fluxo || { workflows: [], currentWorkflow: null },
