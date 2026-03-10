@@ -3,6 +3,40 @@ import { getLocalDevApiBaseUrl, getLocalDevApiBaseUrlSync, isLocalDevModeEnabled
 const ACCESS_TOKEN = "ffce211a-7b07-4d91-ba5d-c40bb4034a83";
 const PLACEHOLDER_XLSX_BASE64 = "UExBQ0VIT0xERVJfWExTWA==";
 
+const LOCAL_DEV_REMOTE_HOSTS = [
+  "backend-plugin.wascript.com.br",
+  "backend-utils.wascript.com.br",
+  "painel-old.wascript.com.br",
+  "painel-new.wascript.com.br",
+  "app.wascript.com.br",
+  "multi-atendimento.wascript.com.br",
+  "api-whatsapp.wascript.com.br",
+  "audio-transcriber.wascript.com.br"
+];
+
+
+
+function isLocalDevRemoteHost(hostname = "") {
+  return LOCAL_DEV_REMOTE_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+}
+
+function isLocalDevApiLikeRequest(urlInstance) {
+  if (!urlInstance) return false;
+  return urlInstance.pathname.startsWith("/api/") || isLocalDevRemoteHost(urlInstance.hostname);
+}
+
+function buildPremiumFeatures() {
+  return {
+    signature: true,
+    insert_name: true,
+    chat_assistant: true,
+    replace_text: true,
+    view_attendants: true,
+    fluxo: true,
+    webhook: true,
+    notes: true
+  };
+}
 
 function buildLocalApiUrl(apiBaseUrl, pathname) {
   if (!apiBaseUrl) return null;
@@ -75,7 +109,11 @@ function buildAuthResponse(body = {}) {
       wl_id: "local-dev-wl",
       bearer_token: bearerToken,
       access_token_plugin: ACCESS_TOKEN,
-      user_premium: true,
+      user_premium: {
+        active: true,
+        data_liberacao: "2099-12-31T00:00:00.000Z",
+        liberacoes: buildPremiumFeatures()
+      },
       dataCadastro: now,
       whatsapp_registro: "5511999999999",
       whatsapp_plugin: "5511888888888",
@@ -102,7 +140,7 @@ export function mockRouter(rawUrl, options = {}) {
 
   if (url.origin === "https://backend-plugin.wascript.com.br") {
     if (method === "GET" && pathname.startsWith("/api/services/initial-data/")) {
-      return buildJsonResponse({ success: true, extension_id: pathname.split("/").pop(), mode: "local-dev" });
+      return buildJsonResponse({ success: true, extension_id: pathname.split("/").pop(), mode: "local-dev", liberacoes: buildPremiumFeatures(), premium: true });
     }
     if (method === "GET" && pathname.startsWith("/api/urls/install/")) {
       return buildJsonResponse({ success: true, url: "https://web.whatsapp.com/" });
@@ -158,7 +196,7 @@ export async function apiRequest(input, options = {}) {
 
   const localApiBaseUrl = await getLocalDevApiBaseUrl();
   const urlInstance = safeCreateUrl(url);
-  if (localApiBaseUrl && urlInstance?.pathname?.startsWith("/api/")) {
+  if (localApiBaseUrl && isLocalDevApiLikeRequest(urlInstance)) {
     const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
     if (localResponse) return localResponse;
   }
@@ -177,7 +215,7 @@ function patchFetch() {
 
       const localApiBaseUrl = getLocalDevApiBaseUrlSync();
       const urlInstance = safeCreateUrl(url);
-      if (localApiBaseUrl && urlInstance?.pathname?.startsWith("/api/")) {
+      if (localApiBaseUrl && isLocalDevApiLikeRequest(urlInstance)) {
         const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
         if (localResponse) return localResponse;
       }
@@ -228,7 +266,7 @@ function patchXMLHttpRequest() {
 
     const localApiBaseUrl = getLocalDevApiBaseUrlSync();
     const urlInstance = safeCreateUrl(url);
-    if (!localApiBaseUrl || !urlInstance?.pathname?.startsWith("/api/")) return originalSend.call(this, body);
+    if (!localApiBaseUrl || !isLocalDevApiLikeRequest(urlInstance)) return originalSend.call(this, body);
 
     requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, requestOptions).then((localResponse) => {
       if (!localResponse) return originalSend.call(this, body);
@@ -251,10 +289,53 @@ function patchXMLHttpRequest() {
   globalThis.__WHASCALE_XHR_PATCHED__ = true;
 }
 
+
+function patchSendBeacon() {
+  if (!globalThis.navigator?.sendBeacon || globalThis.__WHASCALE_BEACON_PATCHED__) return;
+  const originalSendBeacon = globalThis.navigator.sendBeacon.bind(globalThis.navigator);
+
+  globalThis.navigator.sendBeacon = function(url, data) {
+    const localApiBaseUrl = getLocalDevApiBaseUrlSync();
+    const urlInstance = safeCreateUrl(typeof url === "string" ? url : String(url));
+    if (!localApiBaseUrl || !isLocalDevApiLikeRequest(urlInstance)) {
+      return originalSendBeacon(url, data);
+    }
+
+    const payload = typeof data === "string" ? data : data ? "[binary]" : "";
+    requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, {
+      method: "POST",
+      body: payload,
+      headers: { "Content-Type": "text/plain" }
+    });
+    return true;
+  };
+
+  globalThis.__WHASCALE_BEACON_PATCHED__ = true;
+}
+
+function patchWebSocket() {
+  if (!globalThis.WebSocket || globalThis.__WHASCALE_WS_PATCHED__) return;
+  const OriginalWebSocket = globalThis.WebSocket;
+
+  globalThis.WebSocket = function(url, protocols) {
+    const urlInstance = safeCreateUrl(typeof url === "string" ? url : String(url));
+    if (urlInstance && isLocalDevRemoteHost(urlInstance.hostname)) {
+      console.info("[WhaScale][LocalDev] WebSocket remoto bloqueado:", urlInstance.toString());
+      return new OriginalWebSocket("ws://127.0.0.1:65535", protocols);
+    }
+    return new OriginalWebSocket(url, protocols);
+  };
+
+  globalThis.WebSocket.prototype = OriginalWebSocket.prototype;
+  globalThis.__WHASCALE_WS_PATCHED__ = true;
+}
+
 export async function installNetworkMocks() {
   if (!(await isLocalDevModeEnabled())) return;
   patchFetch();
   patchXMLHttpRequest();
+  patchSendBeacon();
+  patchWebSocket();
 }
 
 globalThis.WhaScaleApiClient = {

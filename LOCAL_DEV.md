@@ -42,3 +42,13 @@ Depois recarregue a aba do WhatsApp Web.
 localStorage.setItem("LOCAL_DEV_MODE", "false");
 localStorage.removeItem("LOCAL_DEV_API_BASE_URL");
 ```
+
+
+## 6) Diagnóstico de conexão remota
+Com `LOCAL_DEV_MODE=true`, a extensão agora tenta evitar conexões em hosts `*.wascript.com.br` também por:
+- `fetch`
+- `XMLHttpRequest`
+- `navigator.sendBeacon`
+- `WebSocket`
+
+Para verificar no console, procure logs com prefixo `[WhaScale][LocalDev]`.

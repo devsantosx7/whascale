@@ -6,6 +6,19 @@ const PORT = Number(process.env.PORT || 4010);
 const ACCESS_TOKEN = "ffce211a-7b07-4d91-ba5d-c40bb4034a83";
 const PLACEHOLDER_XLSX_BASE64 = "UExBQ0VIT0xERVJfWExTWA==";
 
+function buildPremiumFeatures() {
+  return {
+    signature: true,
+    insert_name: true,
+    chat_assistant: true,
+    replace_text: true,
+    view_attendants: true,
+    fluxo: true,
+    webhook: true,
+    notes: true
+  };
+}
+
 function sendJson(res, payload, status = 200) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -50,7 +63,11 @@ function buildAuthResponse(body = {}) {
       wl_id: "local-dev-wl",
       bearer_token: body.bearer_token || "local-dev-bearer-token",
       access_token_plugin: ACCESS_TOKEN,
-      user_premium: true,
+      user_premium: {
+        active: true,
+        data_liberacao: "2099-12-31T00:00:00.000Z",
+        liberacoes: buildPremiumFeatures()
+      },
       dataCadastro: now
     },
     auth_google: {}
@@ -72,6 +89,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   const body = await parseBody(req);
+
+
+  if (req.method === "GET" && pathname.startsWith("/api/services/initial-data/")) {
+    sendJson(res, {
+      success: true,
+      extension_id: pathname.split("/").pop(),
+      mode: "local-dev",
+      premium: true,
+      liberacoes: buildPremiumFeatures()
+    });
+    return;
+  }
 
   if (req.method === "POST" && pathname === "/api/auth/login-bearer/") {
     sendJson(res, buildAuthResponse(body));
