@@ -34,7 +34,7 @@ Depois recarregue a aba do WhatsApp Web.
 - Login/validação com usuário premium mockado.
 - Rotas de exportação XLSX.
 - Conversão de áudio e domSelector mockados no próprio bundle local.
-- Fallback: se uma rota `/api/*` não estiver no mock interno, a extensão tenta chamar `LOCAL_DEV_API_BASE_URL`.
+- Cobertura total de conexão: em `LOCAL_DEV_MODE`, qualquer chamada para `*.wascript.com.br` é redirecionada para `LOCAL_DEV_API_BASE_URL` (inclusive rotas fora de `/api/*`).
 
 ## 5) Desativar
 
@@ -52,3 +52,5 @@ Com `LOCAL_DEV_MODE=true`, a extensão agora tenta evitar conexões em hosts `*.
 - `WebSocket`
 
 Para verificar no console, procure logs com prefixo `[WhaScale][LocalDev]`.
+
+- A mock API aceita caminho genérico `__proxy/<host>/<path>` para atender qualquer rota remota não mapeada.

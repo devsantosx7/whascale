@@ -88,6 +88,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+
+  if (pathname.startsWith("/__proxy/")) {
+    const forwarded = pathname.replace("/__proxy", "") + requestUrl.search;
+    sendJson(res, {
+      success: true,
+      proxied: true,
+      method: req.method,
+      forwarded_path: forwarded,
+      note: "Rota genérica local para cobrir qualquer conexão remota no LOCAL_DEV_MODE"
+    });
+    return;
+  }
+
   const body = await parseBody(req);
 
 
@@ -131,7 +144,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  sendJson(res, { success: false, error: "Rota não mockada", pathname }, 404);
+  sendJson(res, { success: true, mocked: true, message: "Rota não mapeada especificamente, resposta genérica local", pathname, method: req.method });
 });
 
 server.listen(PORT, "0.0.0.0", () => {

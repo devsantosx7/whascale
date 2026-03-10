@@ -3,21 +3,10 @@ import { getLocalDevApiBaseUrl, getLocalDevApiBaseUrlSync, isLocalDevModeEnabled
 const ACCESS_TOKEN = "ffce211a-7b07-4d91-ba5d-c40bb4034a83";
 const PLACEHOLDER_XLSX_BASE64 = "UExBQ0VIT0xERVJfWExTWA==";
 
-const LOCAL_DEV_REMOTE_HOSTS = [
-  "backend-plugin.wascript.com.br",
-  "backend-utils.wascript.com.br",
-  "painel-old.wascript.com.br",
-  "painel-new.wascript.com.br",
-  "app.wascript.com.br",
-  "multi-atendimento.wascript.com.br",
-  "api-whatsapp.wascript.com.br",
-  "audio-transcriber.wascript.com.br"
-];
-
-
+const LOCAL_DEV_REMOTE_DOMAIN = "wascript.com.br";
 
 function isLocalDevRemoteHost(hostname = "") {
-  return LOCAL_DEV_REMOTE_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+  return hostname === LOCAL_DEV_REMOTE_DOMAIN || hostname.endsWith(`.${LOCAL_DEV_REMOTE_DOMAIN}`);
 }
 
 function isLocalDevApiLikeRequest(urlInstance) {
@@ -38,6 +27,15 @@ function buildPremiumFeatures() {
   };
 }
 
+
+function getOriginalFetch() {
+  if (!globalThis.fetch) return null;
+  if (!globalThis.__WHASCALE_ORIGINAL_FETCH__) {
+    globalThis.__WHASCALE_ORIGINAL_FETCH__ = globalThis.fetch.bind(globalThis);
+  }
+  return globalThis.__WHASCALE_ORIGINAL_FETCH__;
+}
+
 function buildLocalApiUrl(apiBaseUrl, pathname) {
   if (!apiBaseUrl) return null;
   try {
@@ -47,12 +45,17 @@ function buildLocalApiUrl(apiBaseUrl, pathname) {
   }
 }
 
-async function requestLocalApi(apiBaseUrl, pathname, options = {}) {
+async function requestLocalApi(apiBaseUrl, urlInstance, options = {}) {
+  if (!urlInstance) return null;
+  const pathname = `/__proxy/${urlInstance.hostname}${urlInstance.pathname}${urlInstance.search}`;
   const localApiUrl = buildLocalApiUrl(apiBaseUrl, pathname);
   if (!localApiUrl) return null;
 
+  const originalFetch = getOriginalFetch();
+  if (!originalFetch) return null;
+
   try {
-    const response = await fetch(localApiUrl, options);
+    const response = await originalFetch(localApiUrl, options);
     if (!response.ok) return null;
     return response;
   } catch (_error) {
@@ -71,6 +74,16 @@ function safeCreateUrl(rawUrl) {
       return null;
     }
   }
+}
+
+
+function buildBlockedResponse(urlInstance) {
+  return buildJsonResponse({
+    success: false,
+    local_dev_blocked: true,
+    message: "Requisição bloqueada no LOCAL_DEV_MODE",
+    target: urlInstance?.toString?.() || "unknown"
+  }, 503);
 }
 
 function buildJsonResponse(payload, status = 200) {
@@ -196,9 +209,12 @@ export async function apiRequest(input, options = {}) {
 
   const localApiBaseUrl = await getLocalDevApiBaseUrl();
   const urlInstance = safeCreateUrl(url);
-  if (localApiBaseUrl && isLocalDevApiLikeRequest(urlInstance)) {
-    const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
-    if (localResponse) return localResponse;
+  if (isLocalDevApiLikeRequest(urlInstance)) {
+    if (localApiBaseUrl) {
+      const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance, options);
+      if (localResponse) return localResponse;
+    }
+    return buildBlockedResponse(urlInstance);
   }
 
   return fetch(input, options);
@@ -206,7 +222,7 @@ export async function apiRequest(input, options = {}) {
 
 function patchFetch() {
   if (!globalThis.fetch || globalThis.__WHASCALE_FETCH_PATCHED__) return;
-  const originalFetch = globalThis.fetch.bind(globalThis);
+  const originalFetch = getOriginalFetch();
   globalThis.fetch = async (input, options = {}) => {
     const url = typeof input === "string" ? input : input?.url;
     if (url) {
@@ -215,9 +231,12 @@ function patchFetch() {
 
       const localApiBaseUrl = getLocalDevApiBaseUrlSync();
       const urlInstance = safeCreateUrl(url);
-      if (localApiBaseUrl && isLocalDevApiLikeRequest(urlInstance)) {
-        const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
-        if (localResponse) return localResponse;
+      if (isLocalDevApiLikeRequest(urlInstance)) {
+        if (localApiBaseUrl) {
+          const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance, options);
+          if (localResponse) return localResponse;
+        }
+        return buildBlockedResponse(urlInstance);
       }
     }
     return originalFetch(input, options);
@@ -266,10 +285,39 @@ function patchXMLHttpRequest() {
 
     const localApiBaseUrl = getLocalDevApiBaseUrlSync();
     const urlInstance = safeCreateUrl(url);
-    if (!localApiBaseUrl || !isLocalDevApiLikeRequest(urlInstance)) return originalSend.call(this, body);
+    if (!isLocalDevApiLikeRequest(urlInstance)) return originalSend.call(this, body);
 
-    requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, requestOptions).then((localResponse) => {
-      if (!localResponse) return originalSend.call(this, body);
+    if (!localApiBaseUrl) {
+      const blocked = buildBlockedResponse(urlInstance);
+      blocked.text().then((responseText) => {
+        Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
+        Object.defineProperty(this, "status", { configurable: true, value: 503 });
+        Object.defineProperty(this, "responseText", { configurable: true, value: responseText });
+        Object.defineProperty(this, "response", { configurable: true, value: responseText });
+        this.onreadystatechange?.();
+        this.onload?.();
+        this.dispatchEvent(new Event("readystatechange"));
+        this.dispatchEvent(new Event("load"));
+        this.dispatchEvent(new Event("loadend"));
+      });
+      return;
+    }
+
+    requestLocalApi(localApiBaseUrl, urlInstance, requestOptions).then((localResponse) => {
+      if (!localResponse) {
+        const blocked = buildBlockedResponse(urlInstance);
+        return blocked.text().then((responseText) => {
+          Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
+          Object.defineProperty(this, "status", { configurable: true, value: 503 });
+          Object.defineProperty(this, "responseText", { configurable: true, value: responseText });
+          Object.defineProperty(this, "response", { configurable: true, value: responseText });
+          this.onreadystatechange?.();
+          this.onload?.();
+          this.dispatchEvent(new Event("readystatechange"));
+          this.dispatchEvent(new Event("load"));
+          this.dispatchEvent(new Event("loadend"));
+        });
+      }
 
       localResponse.text().then((responseText) => {
         Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
@@ -297,12 +345,14 @@ function patchSendBeacon() {
   globalThis.navigator.sendBeacon = function(url, data) {
     const localApiBaseUrl = getLocalDevApiBaseUrlSync();
     const urlInstance = safeCreateUrl(typeof url === "string" ? url : String(url));
-    if (!localApiBaseUrl || !isLocalDevApiLikeRequest(urlInstance)) {
+    if (!isLocalDevApiLikeRequest(urlInstance)) {
       return originalSendBeacon(url, data);
     }
 
+    if (!localApiBaseUrl) return false;
+
     const payload = typeof data === "string" ? data : data ? "[binary]" : "";
-    requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, {
+    requestLocalApi(localApiBaseUrl, urlInstance, {
       method: "POST",
       body: payload,
       headers: { "Content-Type": "text/plain" }
@@ -321,7 +371,18 @@ function patchWebSocket() {
     const urlInstance = safeCreateUrl(typeof url === "string" ? url : String(url));
     if (urlInstance && isLocalDevRemoteHost(urlInstance.hostname)) {
       console.info("[WhaScale][LocalDev] WebSocket remoto bloqueado:", urlInstance.toString());
-      return new OriginalWebSocket("ws://127.0.0.1:65535", protocols);
+      const eventTarget = new EventTarget();
+      const socketShim = {
+        readyState: 3,
+        url: urlInstance.toString(),
+        close: () => {},
+        send: () => {},
+        addEventListener: (...args) => eventTarget.addEventListener(...args),
+        removeEventListener: (...args) => eventTarget.removeEventListener(...args),
+        dispatchEvent: (...args) => eventTarget.dispatchEvent(...args)
+      };
+      setTimeout(() => socketShim.dispatchEvent(new Event("close")), 0);
+      return socketShim;
     }
     return new OriginalWebSocket(url, protocols);
   };
