@@ -1,3 +1,4 @@
+import { installNetworkMocks } from "./api-client.js";
 import { isLocalDevModeEnabled } from "./local-dev.js";
 
 (async () => {
@@ -5,7 +6,8 @@ import { isLocalDevModeEnabled } from "./local-dev.js";
     const isLocalDevMode = await isLocalDevModeEnabled();
     if (!isLocalDevMode) return;
 
-    console.info("[WhaScale] Local Dev Mode ativo (premium local via bundles .js)");
+    await installNetworkMocks();
+    console.info("[WhaScale] Local Dev Mode ativo (Mock API + premium local)");
   } catch (error) {
     console.error("[WhaScale] Falha ao inicializar Local Dev Mode", error);
   }
