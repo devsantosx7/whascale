@@ -145,13 +145,23 @@ function buildAuthResponse(body = {}) {
   };
 }
 
+function isBackendPluginPath(pathname, method) {
+  if (method === "GET" && pathname.startsWith("/api/services/initial-data/")) return true;
+  if (method === "GET" && pathname.startsWith("/api/urls/install/")) return true;
+  if (method === "GET" && pathname.startsWith("/api/urls/uninstall/")) return true;
+  if (method === "GET" && pathname.startsWith("/api/urls/notes/")) return true;
+  if (method === "POST" && pathname.includes("/api/auth/login-bearer/")) return true;
+  if (method === "POST" && pathname.includes("/api/auth/validation/")) return true;
+  return false;
+}
+
 export function mockRouter(rawUrl, options = {}) {
   const url = new URL(rawUrl);
   const pathname = url.pathname;
   const method = (options.method || "GET").toUpperCase();
   const body = getRequestBody(options);
 
-  if (url.origin === "https://backend-plugin.wascript.com.br") {
+  if (isBackendPluginPath(pathname, method)) {
     if (method === "GET" && pathname.startsWith("/api/services/initial-data/")) {
       return buildJsonResponse({ success: true, extension_id: pathname.split("/").pop(), mode: "local-dev", liberacoes: buildPremiumFeatures(), premium: true });
     }
@@ -172,11 +182,11 @@ export function mockRouter(rawUrl, options = {}) {
     }
   }
 
-  if (url.origin === "https://backend-utils.wascript.com.br" && method === "POST" && pathname === "/api/audio/convert-ptt-base64") {
+  if (method === "POST" && pathname === "/api/audio/convert-ptt-base64") {
     return buildJsonResponse({ base64: body.base64 || "" });
   }
 
-  if (url.origin === "https://painel-new.wascript.com.br" && method === "GET" && pathname === "/extend/domSelector.json") {
+  if (method === "GET" && pathname === "/extend/domSelector.json") {
     return buildJsonResponse({ version: "local-dev-1.0.0" });
   }
 
