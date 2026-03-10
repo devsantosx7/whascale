@@ -1,7 +1,43 @@
-import { isLocalDevModeEnabled } from "./local-dev.js";
+import { getLocalDevApiBaseUrl, getLocalDevApiBaseUrlSync, isLocalDevModeEnabled } from "./local-dev.js";
 
 const ACCESS_TOKEN = "ffce211a-7b07-4d91-ba5d-c40bb4034a83";
 const PLACEHOLDER_XLSX_BASE64 = "UExBQ0VIT0xERVJfWExTWA==";
+
+
+function buildLocalApiUrl(apiBaseUrl, pathname) {
+  if (!apiBaseUrl) return null;
+  try {
+    return new URL(pathname, `${apiBaseUrl}/`).toString();
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function requestLocalApi(apiBaseUrl, pathname, options = {}) {
+  const localApiUrl = buildLocalApiUrl(apiBaseUrl, pathname);
+  if (!localApiUrl) return null;
+
+  try {
+    const response = await fetch(localApiUrl, options);
+    if (!response.ok) return null;
+    return response;
+  } catch (_error) {
+    return null;
+  }
+}
+
+
+function safeCreateUrl(rawUrl) {
+  try {
+    return new URL(rawUrl);
+  } catch (_error) {
+    try {
+      return new URL(rawUrl, globalThis.location?.origin || "https://web.whatsapp.com");
+    } catch (_secondError) {
+      return null;
+    }
+  }
+}
 
 function buildJsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -114,10 +150,19 @@ export function mockRouter(rawUrl, options = {}) {
 
 export async function apiRequest(input, options = {}) {
   const url = typeof input === "string" ? input : input.url;
-  if (await isLocalDevModeEnabled()) {
-    const mockedResponse = mockRouter(url, options);
-    if (mockedResponse) return mockedResponse;
+  const isLocalDevMode = await isLocalDevModeEnabled();
+  if (!isLocalDevMode) return fetch(input, options);
+
+  const mockedResponse = mockRouter(url, options);
+  if (mockedResponse) return mockedResponse;
+
+  const localApiBaseUrl = await getLocalDevApiBaseUrl();
+  const urlInstance = safeCreateUrl(url);
+  if (localApiBaseUrl && urlInstance?.pathname?.startsWith("/api/")) {
+    const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
+    if (localResponse) return localResponse;
   }
+
   return fetch(input, options);
 }
 
@@ -129,6 +174,13 @@ function patchFetch() {
     if (url) {
       const mockedResponse = mockRouter(url, options);
       if (mockedResponse) return mockedResponse;
+
+      const localApiBaseUrl = getLocalDevApiBaseUrlSync();
+      const urlInstance = safeCreateUrl(url);
+      if (localApiBaseUrl && urlInstance?.pathname?.startsWith("/api/")) {
+        const localResponse = await requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, options);
+        if (localResponse) return localResponse;
+      }
     }
     return originalFetch(input, options);
   };
@@ -151,24 +203,48 @@ function patchXMLHttpRequest() {
     const url = this.__whascaleMockUrl;
     if (!url) return originalSend.call(this, body);
 
-    const mockedResponse = mockRouter(url, {
+    const requestOptions = {
       method: this.__whascaleMockMethod || "GET",
       body: typeof body === "string" ? body : undefined
-    });
+    };
 
-    if (!mockedResponse) return originalSend.call(this, body);
+    const mockedResponse = mockRouter(url, requestOptions);
 
-    mockedResponse.text().then((responseText) => {
-      Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
-      Object.defineProperty(this, "status", { configurable: true, value: 200 });
-      Object.defineProperty(this, "responseText", { configurable: true, value: responseText });
-      Object.defineProperty(this, "response", { configurable: true, value: responseText });
+    if (mockedResponse) {
+      mockedResponse.text().then((responseText) => {
+        Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
+        Object.defineProperty(this, "status", { configurable: true, value: 200 });
+        Object.defineProperty(this, "responseText", { configurable: true, value: responseText });
+        Object.defineProperty(this, "response", { configurable: true, value: responseText });
 
-      this.onreadystatechange?.();
-      this.onload?.();
-      this.dispatchEvent(new Event("readystatechange"));
-      this.dispatchEvent(new Event("load"));
-      this.dispatchEvent(new Event("loadend"));
+        this.onreadystatechange?.();
+        this.onload?.();
+        this.dispatchEvent(new Event("readystatechange"));
+        this.dispatchEvent(new Event("load"));
+        this.dispatchEvent(new Event("loadend"));
+      });
+      return;
+    }
+
+    const localApiBaseUrl = getLocalDevApiBaseUrlSync();
+    const urlInstance = safeCreateUrl(url);
+    if (!localApiBaseUrl || !urlInstance?.pathname?.startsWith("/api/")) return originalSend.call(this, body);
+
+    requestLocalApi(localApiBaseUrl, urlInstance.pathname + urlInstance.search, requestOptions).then((localResponse) => {
+      if (!localResponse) return originalSend.call(this, body);
+
+      localResponse.text().then((responseText) => {
+        Object.defineProperty(this, "readyState", { configurable: true, value: 4 });
+        Object.defineProperty(this, "status", { configurable: true, value: localResponse.status });
+        Object.defineProperty(this, "responseText", { configurable: true, value: responseText });
+        Object.defineProperty(this, "response", { configurable: true, value: responseText });
+
+        this.onreadystatechange?.();
+        this.onload?.();
+        this.dispatchEvent(new Event("readystatechange"));
+        this.dispatchEvent(new Event("load"));
+        this.dispatchEvent(new Event("loadend"));
+      });
     });
   };
 

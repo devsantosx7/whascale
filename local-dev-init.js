@@ -1,11 +1,12 @@
-import { isLocalDevModeEnabled } from "./local-dev.js";
+import { getLocalDevApiBaseUrl, isLocalDevModeEnabled } from "./local-dev.js";
 
 (async () => {
   try {
     const isLocalDevMode = await isLocalDevModeEnabled();
     if (!isLocalDevMode) return;
 
-    console.info("[WhaScale] Local Dev Mode ativo (premium local via bundles .js)");
+    const localDevApiBaseUrl = await getLocalDevApiBaseUrl();
+    console.info(`[WhaScale] Local Dev Mode ativo (premium local via bundles .js)${localDevApiBaseUrl ? ` | API local: ${localDevApiBaseUrl}` : ""}`);
   } catch (error) {
     console.error("[WhaScale] Falha ao inicializar Local Dev Mode", error);
   }
